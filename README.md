@@ -1,6 +1,6 @@
-# [AOC2024](https://adventofcode.com/2024)_py
+# [AOC2025](https://adventofcode.com/2025)_py
 
-This repository contains my solutions for the Advent of Code 2024, written in Python.
+This repository contains my solutions for the Advent of Code 2025, written in Python.
 
 ## Project Structure
 
