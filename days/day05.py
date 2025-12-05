@@ -101,6 +101,7 @@ def part2(input_str):
     #     if crb >= nlb:
     #         # call recursively to merge until crb < nlb
     #         merged_id_ranges += merge_ranges(id_ranges_sorted)
+
     i = 0
     while i < len(id_ranges_sorted):
         currb = id_ranges_sorted[i]
