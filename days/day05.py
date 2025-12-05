@@ -114,6 +114,7 @@ def part2(input_str):
     # print(id_ranges_sorted)
     # print()
     # print(f"merged results: {merged_id_ranges}")
+
     # print(f"count of merged ranges: {len(merged_id_ranges)}")
     freshcount = 0
     for lb, rb in merged_id_ranges:
