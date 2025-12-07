@@ -100,7 +100,7 @@ def part2(input_str):
     # now move all tachyons to next downward (where possible)
 
     for rc in range(0, maxrows + 1):
-        print(f"timeline counts: {sum(timeline_counts.values())}")
+        # print(f"timeline counts: {sum(timeline_counts.values())}")
         next_timeline_counts = dd(int)
 
         for (i, j), count in timeline_counts.items():
