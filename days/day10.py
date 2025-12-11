@@ -3,6 +3,16 @@ import os
 from collections import deque
 import heapq
 
+# Import ILP solver for optimization
+try:
+    from pulp import LpMinimize, LpProblem, LpVariable, lpSum, LpInteger, value
+except ImportError:
+    print("Installing pulp...")
+    import subprocess
+
+    subprocess.check_call(["pip", "install", "pulp"])
+    from pulp import LpMinimize, LpProblem, LpVariable, lpSum, LpInteger, value
+
 
 def match_light(state, aim):
     return all([state[i] == aim[i] for i in range(len(aim))])
@@ -100,16 +110,6 @@ def part2(input_str):
     filename = os.path.basename(__file__)
     day_num = filename.replace("day", "").replace(".py", "").strip()
     print(f"Day {day_num}, Part 2:")
-
-    # Import ILP solver for optimization
-    try:
-        from pulp import LpMinimize, LpProblem, LpVariable, lpSum, LpInteger, value
-    except ImportError:
-        print("Installing pulp...")
-        import subprocess
-
-        subprocess.check_call(["pip", "install", "pulp"])
-        from pulp import LpMinimize, LpProblem, LpVariable, lpSum, LpInteger, value
 
     result = 0
 
