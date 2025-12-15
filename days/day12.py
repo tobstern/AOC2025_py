@@ -43,14 +43,14 @@ def part1(input_str):
 
         # print(f"tot_empty={tot_empty}; tot_present={tot_present}")
 
-        if tot_present * 1.3 < tot_empty:
+        if tot_present // 3 < tot_empty // 3:
             # if there is "plenty of space", problably fitting inside space
             result += 1
-        elif tot_present > tot_empty:
-            continue
-        else:
-            print(f"This can be hard to place - probably not fitting...")
-            print(f"tot_empty={tot_empty}; tot_present={tot_present}")
+        # elif tot_present > tot_empty:
+        #     continue
+        # else:
+        #     print(f"This can be hard to place - probably not fitting...")
+        #     print(f"tot_empty={tot_empty}; tot_present={tot_present}")
 
     print(f"Part 1 result is: {result}")
 
