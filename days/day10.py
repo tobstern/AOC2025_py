@@ -2,18 +2,14 @@ import time
 import os
 from collections import deque
 import heapq
+from functools import cache
+from itertools import combinations, product
+import pprint
 
-# Import ILP solver for optimization
-try:
-    from pulp import LpMinimize, LpProblem, LpVariable, lpSum, LpInteger, value
-except ImportError:
-    print("Installing pulp...")
-    import subprocess
-
-    subprocess.check_call(["pip", "install", "pulp"])
-    from pulp import LpMinimize, LpProblem, LpVariable, lpSum, LpInteger, value
+pp = pprint.PrettyPrinter(width=120)
 
 
+#
 def match_light(state, aim):
     return all([state[i] == aim[i] for i in range(len(aim))])
 
@@ -60,12 +56,12 @@ def part1(input_str):
 
         working_comb = []
         curr_min_count = None
-        joltage_state = initial_lights[mc]
+        light_state = initial_lights[mc]
         curr_buttons = button_wirings[mc]
 
         # do BFS:
         button_press_count = 0
-        ini_state = joltage_state
+        ini_state = light_state
         queue = deque([(ini_state, button_press_count)])
 
         seen_states = {ini_state}
@@ -99,10 +95,74 @@ def part1(input_str):
 
 def apply_button_joltage(state, button):
     state_li = list(state)
+    # print(state, type(state))
     for b in button:
         state_li[b] += 1
     # print(state_li)
     return tuple(state_li)
+
+
+def apply_button_toggle(state, button):
+    state_li = list(state)
+    # print(state, type(state))
+    for b in button:
+        state_li[b] += 1
+        state_li[b] %= 2
+    # print(state_li)
+    return tuple(state_li)
+
+
+def combs(all_buttons):
+    # Return unique button combinations as frozensets
+    if not all_buttons:
+        return {frozenset()}
+
+    combos = {frozenset()}
+    for button in all_buttons:
+        new_combos = {combo | {button} for combo in combos}
+        combos |= new_combos
+    return combos
+
+
+def patterns(coeffs):
+    # coeffs: list of 0/1 tuples (button -> counters mask)
+    num_buttons = len(coeffs)
+    num_variables = len(coeffs[0]) if coeffs else 0
+    out = {parity_pattern: {} for parity_pattern in product(range(2), repeat=num_variables)}
+    # enumerate all subsets of buttons
+    for num_pressed_buttons in range(num_buttons + 1):
+        for buttons in combinations(range(num_buttons), num_pressed_buttons):
+            # compute numeric pattern = sum of selected button vectors (elementwise)
+            pattern = tuple(map(sum, zip((0,) * num_variables, *(coeffs[i] for i in buttons))))
+            parity_pattern = tuple(i % 2 for i in pattern)
+            # keep minimal number of buttons that produce this numeric pattern
+            if pattern not in out[parity_pattern]:
+                out[parity_pattern][pattern] = num_pressed_buttons
+    return out
+
+
+def solve_single(coeffs, goal):
+    # precompute pattern -> minimal cost grouped by parity
+    pattern_costs = patterns(coeffs)
+
+    @cache
+    def solve_single_aux(goal_tup):
+        # goal_tup: tuple of nonnegative integers
+        if all(i == 0 for i in goal_tup):
+            return 0
+        answer = 10**12
+        parity = tuple(i % 2 for i in goal_tup)
+        # iterate all numeric patterns matching this parity
+        for pattern, pattern_cost in pattern_costs[parity].items():
+            # must not subtract more than goal
+            if all(pi <= gi for pi, gi in zip(pattern, goal_tup)):
+                new_goal = tuple((gi - pi) // 2 for pi, gi in zip(pattern, goal_tup))
+                candidate = pattern_cost + 2 * solve_single_aux(new_goal)
+                if candidate < answer:
+                    answer = candidate
+        return answer
+
+    return solve_single_aux(tuple(goal))
 
 
 def part2(input_str):
@@ -113,11 +173,15 @@ def part2(input_str):
 
     result = 0
 
+    # parse each line into coeffs (button vectors) and goal (numeric tuple)
     lights = []
     initial_lights = []
     button_wirings = []
     joltage_reqs = []
     initial_joltages = []
+    # ensure the user's snippet variable name is available
+
+    # print(input_str)
     for line in input_str.strip().splitlines():
         line_elems = line.split()
         lights.append(tuple(line_elems[0][1:-1]))
@@ -126,59 +190,49 @@ def part2(input_str):
         joltage_reqs.append(tuple(map(int, line_elems[-1][1:-1].split(","))))
         initial_joltages.append(tuple(0 for _ in range(len(lights[-1]))))
 
-    print(lights)
-    print(initial_lights)
-    print(button_wirings)
-    print(joltage_reqs)
-    print(initial_joltages)
+    # Build `parsed` as list of (coeffs, goal) where coeffs are 0/1 tuples for each button
+    parsed = []
+    for bw, goal in zip(button_wirings, joltage_reqs):
+        coeffs = [tuple(1 if i in btn else 0 for i in range(len(goal))) for btn in bw]
+        parsed.append((coeffs, goal))
 
-    ########## - Solution with help from Claude Sonnet... - ###################
-    # BFS of course did not work here for the real input (joltages of ~ 200 etc.)
-    # Solve using Integer Linear Programming (ILP)
-    # For each machine, we need to find the minimum number of button presses
-    # such that each position reaches its target joltage
-    button_presses_tot = 0
-    for mc, joltage_aim in enumerate(joltage_reqs):
-        print(f"Solving machine {mc + 1}/{len(joltage_reqs)}...")
+    # print("Parsed", len(parsed), "lines")
+    # for i, (c, g) in enumerate(parsed, 1):
+    #     print("Line", i, "goal=", g, "buttons=", len(c))
+    #     if len(c) <= 16:
+    #         print(" example buttons (first 6):")
+    #         pp.pprint(c[:6])
+    #     else:
+    #         print("many buttons; first 6 shown:")
+    #         pp.pprint(c[:6])
 
-        curr_buttons = button_wirings[mc]
-        num_positions = len(joltage_aim)
-        num_buttons = len(curr_buttons)
+    coeffs0, goal0 = parsed[0]
+    # print(f"coeffs: {coeffs0}")
+    pat = patterns(coeffs0)
+    # print(f"created patterns: {pat}")
+    counts = {p: len(dic) for p, dic in pat.items()}
+    # show number of numeric patterns for a few parity buckets (non-empty ones)
+    nonempty = {p: cnt for p, cnt in counts.items() if cnt}
+    # print("non-empty parity buckets:", len(nonempty))
+    # show smallest few entries for parity of the goal
+    goal_par = tuple(i % 2 for i in goal0)
+    # print("goal parity =", goal_par)
+    # print("number of numeric patterns for this parity:", len(pat[goal_par]))
+    # show up to 12 pattern->cost items
+    for i, (pattern, cost) in enumerate(sorted(pat[goal_par].items())[:12]):
+        print(i + 1, pattern, "cost=", cost)
 
-        # Create the LP problem: minimize total button presses
-        prob = LpProblem(f"Machine_{mc}", LpMinimize)
+    total = 0
+    for i, (coeffs, goal) in enumerate(parsed, 1):
+        # print("\nSolving line", i, "goal=", goal)
+        ans = solve_single(coeffs, goal)
+        # print(" -> minimal presses =", ans)
+        total += ans
+    print("\nTotal =", total)
 
-        # Decision variables: how many times to press each button (non-negative integers)
-        button_presses = [LpVariable(f"button_{i}", lowBound=0, cat=LpInteger) for i in range(num_buttons)]
+    # exit()
 
-        # Objective: minimize total button presses
-        prob += lpSum(button_presses), "Total_Button_Presses"
-
-        # Constraints: each position must reach exactly its target joltage
-        # For each position, sum up contributions from all buttons that affect it
-        for pos in range(num_positions):
-            # Find which buttons affect this position
-            contribution = []
-            for btn_idx, button in enumerate(curr_buttons):
-                if pos in button:
-                    # This button adds 1 to this position when pressed
-                    contribution.append(button_presses[btn_idx])
-
-            # The sum of contributions must equal the target joltage for this position
-            prob += lpSum(contribution) == joltage_aim[pos], f"Position_{pos}_Target"
-
-        # Solve the problem
-        prob.solve()
-
-        # Check if solution was found
-        if prob.status == 1:  # Optimal solution found
-            total_presses = int(value(prob.objective))
-            result += total_presses
-            print(f"  Solution: {total_presses} presses")
-        else:
-            print(f"  No solution found! Status: {prob.status}")
-
-    print(f"Part 2 result is: {result}")
+    # print(f"Part 2 result is: {result}")
 
     end_time = time.time()
     print(f"Part 2 execution time: {end_time - start_time} seconds")
